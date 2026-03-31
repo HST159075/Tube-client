@@ -63,15 +63,64 @@ const PLANS = [
 export default function HomePage() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [topRated, setTopRated] = useState<any[]>([]);
+  const [newlyAdded, setNewlyAdded] = useState<any[]>([]);
+  const [featured, setFeatured] = useState<any[]>(FEATURED); // fallback to mock
+
+  // Real API calls
+  useEffect(() => {
+    const API = process.env.NEXT_PUBLIC_API_URL;
+    if (!API) return;
+
+    // Top rated
+    fetch(`${API}/media?sort=top-rated&limit=6`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data || d.media || d || [];
+        if (list.length > 0) setTopRated(list);
+      })
+      .catch(() => {});
+
+    // Newly added
+    fetch(`${API}/media?sort=newest&limit=4`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data || d.media || d || [];
+        if (list.length > 0) setNewlyAdded(list);
+      })
+      .catch(() => {});
+
+    // Featured (for hero)
+    fetch(`${API}/media?sort=top-rated&limit=3`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data || d.media || d || [];
+        if (list.length > 0) setFeatured(list);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % FEATURED.length);
+      setHeroIndex((prev) => (prev + 1) % featured.length);
     }, 6000);
     return () => clearInterval(timer);
-  }, []);
+  }, [featured]);
 
-  const hero = FEATURED[heroIndex];
+  const rawHero = featured[heroIndex] || FEATURED[0];
+
+  // normalize field names from backend
+  const hero = {
+    id: rawHero.id,
+    title: rawHero.title,
+    genre: Array.isArray(rawHero.genre) ? rawHero.genre.join(" / ") : rawHero.genre || rawHero.genres,
+    rating: rawHero.avgRating || rawHero.rating || 0,
+    year: rawHero.releaseYear || rawHero.year,
+    platform: Array.isArray(rawHero.platform) ? rawHero.platform[0] : rawHero.platform,
+    poster: rawHero.poster || rawHero.posterUrl || rawHero.image || "",
+    backdrop: rawHero.backdrop || rawHero.backdropUrl || rawHero.poster || rawHero.posterUrl || rawHero.image || "",
+    description: rawHero.synopsis || rawHero.description || "",
+  };
 
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "#fff", fontFamily: "'DM Sans', sans-serif" }}>
@@ -177,7 +226,7 @@ export default function HomePage() {
           <Link href="/movies?sort=top-rated" style={{ color: "#e50914", textDecoration: "none", fontWeight: 600, fontSize: "0.9rem" }}>View All →</Link>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "20px" }}>
-          {TOP_RATED.map((movie) => (
+          {(topRated.length > 0 ? topRated : TOP_RATED).map((movie) => (
             <MovieCard key={movie.id} movie={movie} />
           ))}
         </div>
@@ -195,7 +244,7 @@ export default function HomePage() {
           <Link href="/movies?sort=newest" style={{ color: "#e50914", textDecoration: "none", fontWeight: 600, fontSize: "0.9rem" }}>View All →</Link>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "20px" }}>
-          {NEWLY_ADDED.map((movie) => (
+          {(newlyAdded.length > 0 ? newlyAdded : NEWLY_ADDED).map((movie) => (
             <MovieCard key={movie.id} movie={movie} />
           ))}
         </div>
@@ -277,6 +326,14 @@ export default function HomePage() {
 
 function MovieCard({ movie }: { movie: any }) {
   const [hovered, setHovered] = useState(false);
+
+  // normalize backend field names
+  const poster = movie.poster || movie.posterUrl || movie.image || movie.thumbnail;
+  const title = movie.title;
+  const genre = Array.isArray(movie.genre) ? movie.genre[0] : movie.genre;
+  const year = movie.releaseYear || movie.year;
+  const rating = movie.avgRating || movie.rating;
+
   return (
     <Link href={`/movies/${movie.id}`} style={{ textDecoration: "none" }}>
       <div
@@ -285,24 +342,35 @@ function MovieCard({ movie }: { movie: any }) {
         style={{ cursor: "pointer", transition: "transform 0.3s", transform: hovered ? "scale(1.05)" : "scale(1)" }}
       >
         <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", aspectRatio: "2/3", background: "#1a1a1a" }}>
-          <img src={movie.poster} alt={movie.title} style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            onError={(e) => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/300x450/1a1a1a/666?text=No+Image"; }}
-          />
+          {poster ? (
+            <img
+              src={poster}
+              alt={title}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontSize: "3rem" }}>
+              🎬
+            </div>
+          )}
           {hovered && (
             <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: "8px" }}>
               <span style={{ background: "#e50914", color: "#fff", padding: "8px 20px", borderRadius: "20px", fontWeight: 700, fontSize: "0.85rem" }}>▶ Watch</span>
               <span style={{ color: "#fff", fontSize: "0.8rem" }}>+ Watchlist</span>
             </div>
           )}
-          <div style={{ position: "absolute", top: "8px", right: "8px", background: "rgba(0,0,0,0.8)", borderRadius: "6px", padding: "3px 8px", fontSize: "12px", fontWeight: 700, color: "#f5c518" }}>
-            ★ {movie.rating}
-          </div>
+          {rating && (
+            <div style={{ position: "absolute", top: "8px", right: "8px", background: "rgba(0,0,0,0.8)", borderRadius: "6px", padding: "3px 8px", fontSize: "12px", fontWeight: 700, color: "#f5c518" }}>
+              ★ {typeof rating === "number" ? rating.toFixed(1) : rating}
+            </div>
+          )}
         </div>
         <div style={{ padding: "10px 2px" }}>
-          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#fff", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{movie.title}</h3>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#fff", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</h3>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ color: "#888", fontSize: "0.78rem" }}>{movie.genre}</span>
-            <span style={{ color: "#888", fontSize: "0.78rem" }}>{movie.year}</span>
+            <span style={{ color: "#888", fontSize: "0.78rem" }}>{genre}</span>
+            <span style={{ color: "#888", fontSize: "0.78rem" }}>{year}</span>
           </div>
         </div>
       </div>
