@@ -26,8 +26,7 @@ export default function RegisterPage() {
       email,
       password,
       name,
-      // Better Auth will use the additionalFields defaults:
-      // role: "USER", status: "ACTIVE"
+     
     });
 
     if (authError) {
