@@ -1,315 +1,479 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-
-// Mock detail data — replace with: const movie = await fetch(`${API_URL}/movies/${params.id}`)
-const MOCK_MOVIE = {
-  id: 1,
-  title: "The Godfather",
-  synopsis: "The aging patriarch of an organized crime dynasty transfers control of his clandestine empire to his reluctant son. An epic tale of power, family, loyalty, and betrayal that has defined American cinema.",
-  genre: ["Crime", "Drama"],
-  year: 1972,
-  director: "Francis Ford Coppola",
-  cast: ["Marlon Brando", "Al Pacino", "James Caan", "Robert De Niro"],
-  platform: ["Netflix", "Amazon Prime"],
-  avgRating: 9.2,
-  totalReviews: 1240,
-  poster: "https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsLLeHjThrVPa.jpg",
-  backdrop: "https://image.tmdb.org/t/p/original/tmU7GeKVPlXMYLVoNxQIRRhLZOd.jpg",
-  streamingLink: "https://www.youtube.com/watch?v=sY1S34973zA",
-  price: "free",
-  duration: "175 min",
-};
-
-const MOCK_REVIEWS = [
-  {
-    id: 1, user: "CinemaBuff92", avatar: "C", rating: 10, date: "2024-03-15",
-    review: "An absolute masterpiece of cinema. Every frame, every performance, every line of dialogue is perfection. Coppola created something timeless here.",
-    likes: 234, spoiler: false, tags: ["classic", "masterpiece"], approved: true,
-    comments: [
-      { id: 1, user: "FilmLover", text: "Completely agree! The score by Nino Rota is unforgettable.", date: "2024-03-16" },
-      { id: 2, user: "MoviesForever", text: "Marlon Brando's performance alone deserves 10/10", date: "2024-03-17" },
-    ]
-  },
-  {
-    id: 2, user: "MovieCritic2024", avatar: "M", rating: 9, date: "2024-02-20",
-    review: "Still holds up after 50 years. The power dynamics and family loyalty themes are explored with incredible depth. A must-watch for anyone serious about film.",
-    likes: 187, spoiler: false, tags: ["underrated"], approved: true,
-    comments: []
-  },
-  {
-    id: 3, user: "SpoilerKing", avatar: "S", rating: 8, date: "2024-01-10",
-    review: "⚠️ SPOILER: The moment Michael transforms from innocent war hero to cold-blooded don is the greatest character arc in film history.",
-    likes: 98, spoiler: true, tags: ["classic"], approved: true,
-    comments: []
-  },
-];
+import { useSession } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 export default function MovieDetailPage({ params }: { params: { id: string } }) {
-  const movie = MOCK_MOVIE;
-  const [reviews, setReviews] = useState(MOCK_REVIEWS);
-  const [userRating, setUserRating] = useState(0);
+  const { data: session } = useSession();
+  const user = session?.user as any;
+  const isAdmin = user?.role === "ADMIN";
+  const isSubscribed = user?.isSubscribed === true;
+  const router = useRouter();
+
+  const [movie, setMovie]   = useState<any>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState("");
+
+  // Review form
+  const [userRating, setUserRating]   = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
-  const [reviewText, setReviewText] = useState("");
-  const [spoilerToggle, setSpoilerToggle] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [showSpoiler, setShowSpoiler] = useState<{ [key: number]: boolean }>({});
-  const [liked, setLiked] = useState<{ [key: number]: boolean }>({});
-  const [commentText, setCommentText] = useState<{ [key: number]: string }>({});
+  const [reviewText, setReviewText]   = useState("");
+  const [hasSpoiler, setHasSpoiler]   = useState(false);
+  const [tags, setTags]               = useState<string[]>([]);
+  const [tagInput, setTagInput]       = useState("");
+  const [submitting, setSubmitting]   = useState(false);
+  const [submitMsg, setSubmitMsg]     = useState("");
+
   const [inWatchlist, setInWatchlist] = useState(false);
-  const [activeTab, setActiveTab] = useState<"reviews" | "details">("reviews");
+  const [likedReviews, setLikedReviews]   = useState<Record<string, boolean>>({});
+  const [likeCounts, setLikeCounts]       = useState<Record<string, number>>({});
+  const [showSpoiler, setShowSpoiler]     = useState<Record<string, boolean>>({});
+  const [commentText, setCommentText]     = useState<Record<string, string>>({});
+  const [showComments, setShowComments]   = useState<Record<string, boolean>>({});
+  const [postingComment, setPostingComment] = useState<Record<string, boolean>>({});
 
-  const TAGS = ["classic", "underrated", "masterpiece", "family-friendly", "must-watch", "overrated"];
+  const API = process.env.NEXT_PUBLIC_API_URL!;
 
-  const handleSubmitReview = () => {
-    if (!userRating || !reviewText.trim()) return alert("Please add a rating and review text!");
-    const newReview = {
-      id: Date.now(), user: "You", avatar: "Y", rating: userRating, date: new Date().toISOString().split("T")[0],
-      review: reviewText, likes: 0, spoiler: spoilerToggle, tags: selectedTags, approved: false,
-      comments: [],
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [mRes, rRes] = await Promise.all([
+          fetch(`${API}/media/${params.id}`, { credentials: "include" }),
+          fetch(`${API}/reviews?mediaId=${params.id}`, { credentials: "include" }),
+        ]);
+        if (!mRes.ok) throw new Error("Movie not found");
+        const mData = await mRes.json();
+        setMovie(mData.data || mData.media || mData);
+
+        const rData = await rRes.json();
+        const list: any[] = rData.data || rData.reviews || rData || [];
+        const approved = list.filter((r: any) => r.isApproved);
+        setReviews(approved);
+
+        const counts: Record<string, number> = {};
+        approved.forEach((r: any) => { counts[r.id] = r._count?.likes ?? 0; });
+        setLikeCounts(counts);
+      } catch (e: any) {
+        setError(e.message);
+      } finally { setLoading(false); }
     };
-    setReviews(prev => [newReview, ...prev]);
-    setUserRating(0); setReviewText(""); setSpoilerToggle(false); setSelectedTags([]);
-    alert("✅ Review submitted! It will be published after admin approval.");
+    load();
+  }, [params.id]);
+
+  // ── Premium check helper ────────────────────────────────────────────────────
+  const canWatch = (priceType: string) => {
+    if (priceType === "FREE") return true;
+    if (isAdmin) return true;        // admin সব দেখতে পারে
+    if (isSubscribed) return true;   // subscriber সব দেখতে পারে
+    return false;
   };
 
-  const handleLike = (reviewId: number) => {
-    setLiked(prev => ({ ...prev, [reviewId]: !prev[reviewId] }));
+  const handleWatchClick = (priceType: string, videoUrl: string) => {
+    if (canWatch(priceType)) {
+      window.open(videoUrl, "_blank");
+    } else {
+      // Premium content — redirect to subscription
+      router.push("/subscription");
+    }
   };
 
-  const handleComment = (reviewId: number) => {
-    const text = commentText[reviewId];
-    if (!text?.trim()) return;
-    setReviews(prev => prev.map(r => r.id === reviewId
-      ? { ...r, comments: [...r.comments, { id: Date.now(), user: "You", text, date: new Date().toISOString().split("T")[0] }] }
-      : r
-    ));
-    setCommentText(prev => ({ ...prev, [reviewId]: "" }));
+  const handleSubmitReview = async () => {
+    if (!user) return setSubmitMsg("Please login first");
+    if (!userRating) return setSubmitMsg("Select a rating (1-10)");
+    if (!reviewText.trim()) return setSubmitMsg("Write your review");
+    setSubmitting(true); setSubmitMsg("");
+    try {
+      const res = await fetch(`${API}/reviews`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: params.id, rating: userRating, content: reviewText, hasSpoiler, tags }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed");
+      setSubmitMsg("✅ Review submitted! Pending admin approval.");
+      setUserRating(0); setReviewText(""); setHasSpoiler(false); setTags([]);
+    } catch (e: any) {
+      setSubmitMsg(`⚠️ ${e.message}`);
+    } finally { setSubmitting(false); }
   };
+
+  const handleLike = async (reviewId: string) => {
+    if (!user) return;
+    const wasLiked = likedReviews[reviewId];
+    setLikedReviews(p => ({ ...p, [reviewId]: !wasLiked }));
+    setLikeCounts(p => ({ ...p, [reviewId]: (p[reviewId] || 0) + (wasLiked ? -1 : 1) }));
+    try {
+      await fetch(`${API}/likes/${reviewId}`, { method: "POST", credentials: "include" });
+    } catch {
+      setLikedReviews(p => ({ ...p, [reviewId]: wasLiked }));
+      setLikeCounts(p => ({ ...p, [reviewId]: (p[reviewId] || 0) + (wasLiked ? 1 : -1) }));
+    }
+  };
+
+  const handleComment = async (reviewId: string) => {
+    const text = commentText[reviewId]?.trim();
+    if (!text || !user) return;
+    setPostingComment(p => ({ ...p, [reviewId]: true }));
+    try {
+      const res = await fetch(`${API}/comments/${reviewId}`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setReviews(prev => prev.map(r =>
+        r.id === reviewId
+          ? { ...r, comments: [...(r.comments || []), data.data || { id: Date.now(), content: text, user: { name: user.name }, createdAt: new Date().toISOString() }] }
+          : r
+      ));
+      setCommentText(p => ({ ...p, [reviewId]: "" }));
+    } catch {} finally { setPostingComment(p => ({ ...p, [reviewId]: false })); }
+  };
+
+  const handleDeleteComment = async (reviewId: string, commentId: string) => {
+    try {
+      await fetch(`${API}/comments/${commentId}`, { method: "DELETE", credentials: "include" });
+      setReviews(prev => prev.map(r =>
+        r.id === reviewId ? { ...r, comments: (r.comments || []).filter((c: any) => c.id !== commentId) } : r
+      ));
+    } catch {}
+  };
+
+  const handleApprove = async (reviewId: string) => {
+    try {
+      await fetch(`${API}/reviews/approve/${reviewId}`, { method: "PATCH", credentials: "include" });
+      setReviews(p => p.map(r => r.id === reviewId ? { ...r, isApproved: true } : r));
+    } catch {}
+  };
+
+  const handleWatchlist = async () => {
+    if (!user) return router.push("/login");
+    try {
+      if (inWatchlist) {
+        await fetch(`${API}/watchlist/${params.id}`, { method: "DELETE", credentials: "include" });
+        setInWatchlist(false);
+      } else {
+        await fetch(`${API}/watchlist`, {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mediaId: params.id }),
+        });
+        setInWatchlist(true);
+      }
+    } catch {}
+  };
+
+  const PRESET_TAGS = ["classic", "underrated", "masterpiece", "must-watch", "overrated", "family-friendly"];
+
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0a", paddingTop: "90px", fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ height: "380px", background: "rgba(255,255,255,0.04)" }} />
+      <div style={{ padding: "0 5vw", marginTop: "-160px", display: "flex", gap: "28px" }}>
+        <div style={{ width: "180px", height: "270px", borderRadius: "12px", background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+        <div style={{ flex: 1, paddingTop: "120px" }}>
+          {[200, 300, 180].map((w, i) => <div key={i} style={{ height: i === 1 ? "44px" : "16px", width: `${w}px`, background: "rgba(255,255,255,0.07)", borderRadius: "6px", marginBottom: "14px" }} />)}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (error || !movie) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", fontFamily: "'DM Sans', sans-serif" }}>
+      <p style={{ fontSize: "3rem" }}>🎬</p>
+      <p style={{ color: "#666", fontWeight: 700 }}>{error || "Movie not found"}</p>
+      <Link href="/movies" style={{ color: "#e50914", textDecoration: "none" }}>← Browse all</Link>
+    </div>
+  );
+
+  const poster    = movie.posterUrl;
+  const title     = movie.title;
+  const synopsis  = movie.synopsis;
+  const genres    = movie.genres || [];
+  const year      = movie.releaseYear;
+  const director  = movie.director;
+  const cast      = movie.cast || [];
+  const videoUrl  = movie.videoUrl;
+  const priceType = movie.priceType || "FREE";
+  const avgRating = movie.avgRating || 0;
+  const isPremium = priceType === "PREMIUM";
+  const userCanWatch = canWatch(priceType);
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* HERO BACKDROP */}
-      <div style={{ position: "relative", height: "500px", overflow: "hidden" }}>
-        <img src={movie.backdrop} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.5) 50%, transparent 100%)" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(10,10,10,0.8) 0%, transparent 60%)" }} />
+      {/* BACKDROP */}
+      <div style={{ position: "relative", height: "480px", overflow: "hidden" }}>
+        {poster
+          ? <img src={poster} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", filter: "blur(3px) brightness(0.35)" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          : <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg, #1a0005, #0a0a0a)" }} />
+        }
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, #0a0a0a 0%, rgba(10,10,10,0.5) 55%, transparent 100%)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(10,10,10,0.85) 0%, transparent 60%)" }} />
       </div>
 
       {/* MOVIE INFO */}
       <div style={{ padding: "0 5vw", marginTop: "-200px", position: "relative", zIndex: 10 }}>
-        <div style={{ display: "flex", gap: "40px", alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "36px", alignItems: "flex-end", flexWrap: "wrap" }}>
+
           {/* Poster */}
-          <img src={movie.poster} alt={movie.title} style={{ width: "200px", borderRadius: "16px", boxShadow: "0 20px 60px rgba(0,0,0,0.8)", flexShrink: 0 }}
-            onError={e => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/200x300/1a1a1a/666?text=No+Image"; }}
-          />
-          {/* Info */}
-          <div style={{ flex: 1, paddingBottom: "8px" }}>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            {poster
+              ? <img src={poster} alt={title} style={{ width: "175px", borderRadius: "14px", boxShadow: "0 24px 60px rgba(0,0,0,0.85)", display: "block" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              : <div style={{ width: "175px", height: "262px", borderRadius: "14px", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "4rem" }}>🎬</div>
+            }
+            {/* Premium lock overlay on poster */}
+            {isPremium && !userCanWatch && (
+              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.65)", borderRadius: "14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <span style={{ fontSize: "2rem" }}>🔒</span>
+                <span style={{ color: "#f5c518", fontSize: "0.75rem", fontWeight: 700 }}>PREMIUM</span>
+              </div>
+            )}
+          </div>
+
+          {/* Details */}
+          <div style={{ flex: 1, minWidth: "260px", paddingBottom: "8px" }}>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
-              {movie.genre.map(g => (
-                <span key={g} style={{ background: "rgba(255,255,255,0.1)", padding: "4px 12px", borderRadius: "20px", fontSize: "0.8rem", color: "#ccc" }}>{g}</span>
+              {genres.map((g: string) => (
+                <span key={g} style={{ background: "rgba(255,255,255,0.1)", padding: "4px 12px", borderRadius: "20px", fontSize: "0.78rem", color: "#ccc" }}>{g}</span>
               ))}
-              <span style={{ background: movie.price === "premium" ? "rgba(245,197,24,0.2)" : "rgba(74,222,128,0.2)", color: movie.price === "premium" ? "#f5c518" : "#4ade80", padding: "4px 12px", borderRadius: "20px", fontSize: "0.8rem", fontWeight: 700 }}>
-                {movie.price === "premium" ? "⭐ Premium" : "✓ Free"}
+              {/* Price badge */}
+              <span style={{ background: isPremium ? "rgba(245,197,24,0.2)" : "rgba(74,222,128,0.2)", color: isPremium ? "#f5c518" : "#4ade80", padding: "4px 12px", borderRadius: "20px", fontSize: "0.78rem", fontWeight: 700, border: `1px solid ${isPremium ? "rgba(245,197,24,0.3)" : "rgba(74,222,128,0.25)"}` }}>
+                {isPremium ? "⭐ Premium" : "✓ Free"}
               </span>
             </div>
-            <h1 style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)", fontWeight: 900, fontFamily: "'Playfair Display', serif", marginBottom: "8px" }}>
-              {movie.title}
-            </h1>
-            <div style={{ display: "flex", gap: "20px", alignItems: "center", marginBottom: "16px", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ color: "#f5c518", fontSize: "1.8rem", fontWeight: 900 }}>★ {movie.avgRating}</span>
-                <span style={{ color: "#888", fontSize: "0.9rem" }}>/ 10</span>
-              </div>
-              <span style={{ color: "#888" }}>•</span>
-              <span style={{ color: "#aaa" }}>{movie.year}</span>
-              <span style={{ color: "#888" }}>•</span>
-              <span style={{ color: "#aaa" }}>{movie.duration}</span>
-              <span style={{ color: "#888" }}>•</span>
-              <span style={{ color: "#aaa" }}>{movie.totalReviews} reviews</span>
+
+            <h1 style={{ fontSize: "clamp(2rem, 4vw, 3.2rem)", fontWeight: 900, fontFamily: "'Playfair Display', serif", marginBottom: "12px", lineHeight: 1.1 }}>{title}</h1>
+
+            <div style={{ display: "flex", gap: "14px", alignItems: "center", marginBottom: "14px", flexWrap: "wrap" }}>
+              {avgRating > 0 && (
+                <span style={{ color: "#f5c518", fontSize: "1.7rem", fontWeight: 900 }}>
+                  ★ {Number(avgRating).toFixed(1)}<span style={{ color: "#555", fontSize: "1rem", fontWeight: 400 }}>/10</span>
+                </span>
+              )}
+              {year && <><span style={{ color: "#555" }}>•</span><span style={{ color: "#aaa" }}>{year}</span></>}
+              {reviews.length > 0 && <><span style={{ color: "#555" }}>•</span><span style={{ color: "#aaa" }}>{reviews.length} reviews</span></>}
             </div>
-            <p style={{ color: "#aaa", lineHeight: 1.8, marginBottom: "20px", maxWidth: "600px" }}>{movie.synopsis}</p>
+
+            <p style={{ color: "#aaa", lineHeight: 1.75, marginBottom: "24px", maxWidth: "560px", fontSize: "0.95rem" }}>{synopsis}</p>
+
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              <a href={movie.streamingLink} target="_blank" rel="noopener noreferrer">
-                <button style={{ background: "#e50914", color: "#fff", border: "none", padding: "13px 28px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", fontSize: "1rem" }}>
-                  ▶ Watch on YouTube
-                </button>
-              </a>
-              <button onClick={() => setInWatchlist(p => !p)}
-                style={{ background: inWatchlist ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.08)", color: inWatchlist ? "#4ade80" : "#fff", border: `1px solid ${inWatchlist ? "#4ade80" : "rgba(255,255,255,0.2)"}`, padding: "13px 24px", borderRadius: "10px", fontWeight: 600, cursor: "pointer", fontSize: "1rem" }}>
+
+              {/* ── WATCH BUTTON — premium check ── */}
+              {videoUrl && (
+                userCanWatch ? (
+                  /* Has access — open video */
+                  <a href={videoUrl} target="_blank" rel="noopener noreferrer">
+                    <button style={{ background: "#e50914", color: "#fff", border: "none", padding: "13px 28px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", fontSize: "0.95rem", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}>
+                      ▶ Watch Now
+                    </button>
+                  </a>
+                ) : (
+                  /* Premium — no access */
+                  <div>
+                    <button
+                      onClick={() => router.push("/subscription")}
+                      style={{ background: "linear-gradient(135deg, #f5c518, #e6a800)", color: "#000", border: "none", padding: "13px 28px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", fontSize: "0.95rem", fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}>
+                      🔒 Subscribe to Watch
+                    </button>
+                  </div>
+                )
+              )}
+
+              {/* Watchlist */}
+              <button onClick={handleWatchlist}
+                style={{ background: inWatchlist ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.08)", color: inWatchlist ? "#4ade80" : "#fff", border: `1px solid ${inWatchlist ? "#4ade80" : "rgba(255,255,255,0.2)"}`, padding: "13px 22px", borderRadius: "10px", fontWeight: 600, cursor: "pointer", fontSize: "0.95rem", fontFamily: "'DM Sans', sans-serif" }}>
                 {inWatchlist ? "✓ In Watchlist" : "+ Watchlist"}
               </button>
             </div>
-          </div>
-        </div>
 
-        {/* Meta Details */}
-        <div style={{ marginTop: "40px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "16px", padding: "24px" }}>
-          <div><p style={{ color: "#888", fontSize: "0.8rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "1px" }}>Director</p><p style={{ fontWeight: 600 }}>{movie.director}</p></div>
-          <div><p style={{ color: "#888", fontSize: "0.8rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "1px" }}>Cast</p><p style={{ fontWeight: 600 }}>{movie.cast.join(", ")}</p></div>
-          <div><p style={{ color: "#888", fontSize: "0.8rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "1px" }}>Streaming</p><p style={{ fontWeight: 600 }}>{movie.platform.join(", ")}</p></div>
-          <div><p style={{ color: "#888", fontSize: "0.8rem", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "1px" }}>Release Year</p><p style={{ fontWeight: 600 }}>{movie.year}</p></div>
-        </div>
-
-        {/* TABS */}
-        <div style={{ marginTop: "48px", display: "flex", gap: "4px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: "40px" }}>
-          {(["reviews", "details"] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              style={{ padding: "12px 24px", background: "transparent", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.95rem", textTransform: "capitalize", color: activeTab === tab ? "#e50914" : "#888", borderBottom: activeTab === tab ? "2px solid #e50914" : "2px solid transparent", transition: "all 0.2s" }}>
-              {tab} {tab === "reviews" ? `(${reviews.filter(r => r.approved).length})` : ""}
-            </button>
-          ))}
-        </div>
-
-        {activeTab === "reviews" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "40px", alignItems: "flex-start", flexWrap: "wrap" }}>
-
-            {/* REVIEWS LIST */}
-            <div>
-              {reviews.filter(r => r.approved || r.user === "You").map(review => (
-                <div key={review.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "16px", padding: "24px", marginBottom: "20px" }}>
-                  {!review.approved && (
-                    <div style={{ background: "rgba(245,197,24,0.1)", border: "1px solid rgba(245,197,24,0.3)", borderRadius: "8px", padding: "8px 14px", marginBottom: "16px", fontSize: "0.85rem", color: "#f5c518" }}>
-                      ⏳ Pending admin approval
-                    </div>
-                  )}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                    <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                      <div style={{ width: "42px", height: "42px", background: "#e50914", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1.1rem" }}>
-                        {review.avatar}
-                      </div>
-                      <div>
-                        <p style={{ fontWeight: 700, marginBottom: "2px" }}>{review.user}</p>
-                        <p style={{ color: "#888", fontSize: "0.8rem" }}>{review.date}</p>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "rgba(245,197,24,0.1)", padding: "6px 12px", borderRadius: "8px" }}>
-                      <span style={{ color: "#f5c518", fontWeight: 900 }}>★</span>
-                      <span style={{ fontWeight: 700 }}>{review.rating}/10</span>
-                    </div>
-                  </div>
-
-                  {review.spoiler ? (
-                    showSpoiler[review.id] ? (
-                      <p style={{ color: "#ccc", lineHeight: 1.7, marginBottom: "16px" }}>{review.review}</p>
-                    ) : (
-                      <div style={{ background: "rgba(229,9,20,0.1)", border: "1px solid rgba(229,9,20,0.3)", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ color: "#e50914", fontWeight: 600 }}>⚠️ This review contains spoilers</span>
-                        <button onClick={() => setShowSpoiler(p => ({ ...p, [review.id]: true }))}
-                          style={{ background: "rgba(229,9,20,0.2)", color: "#e50914", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.85rem" }}>
-                          Show anyway
-                        </button>
-                      </div>
-                    )
-                  ) : (
-                    <p style={{ color: "#ccc", lineHeight: 1.7, marginBottom: "16px" }}>{review.review}</p>
-                  )}
-
-                  {review.tags.length > 0 && (
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-                      {review.tags.map(t => (
-                        <span key={t} style={{ background: "rgba(255,255,255,0.08)", color: "#aaa", padding: "3px 10px", borderRadius: "12px", fontSize: "0.78rem" }}>#{t}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    <button onClick={() => handleLike(review.id)}
-                      style={{ background: liked[review.id] ? "rgba(229,9,20,0.15)" : "transparent", border: `1px solid ${liked[review.id] ? "rgba(229,9,20,0.5)" : "rgba(255,255,255,0.1)"}`, color: liked[review.id] ? "#e50914" : "#888", padding: "6px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", transition: "all 0.2s" }}>
-                      {liked[review.id] ? "❤️" : "🤍"} {review.likes + (liked[review.id] ? 1 : 0)}
-                    </button>
-                    <span style={{ color: "#888", fontSize: "0.85rem" }}>{review.comments.length} comments</span>
-                  </div>
-
-                  {/* Comments */}
-                  {review.comments.length > 0 && (
-                    <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                      {review.comments.map(c => (
-                        <div key={c.id} style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
-                          <div style={{ width: "30px", height: "30px", background: "#333", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8rem", fontWeight: 700, flexShrink: 0 }}>
-                            {c.user[0]}
-                          </div>
-                          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: "10px", padding: "10px 14px", flex: 1 }}>
-                            <span style={{ fontWeight: 700, fontSize: "0.85rem", marginRight: "8px" }}>{c.user}</span>
-                            <span style={{ color: "#888", fontSize: "0.75rem" }}>{c.date}</span>
-                            <p style={{ color: "#ccc", fontSize: "0.9rem", marginTop: "4px" }}>{c.text}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add comment */}
-                  <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-                    <input
-                      value={commentText[review.id] || ""}
-                      onChange={e => setCommentText(p => ({ ...p, [review.id]: e.target.value }))}
-                      placeholder="Add a comment..."
-                      style={{ flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "8px 14px", color: "#fff", fontSize: "0.85rem", outline: "none" }}
-                    />
-                    <button onClick={() => handleComment(review.id)}
-                      style={{ background: "#e50914", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 16px", cursor: "pointer", fontWeight: 600, fontSize: "0.85rem" }}>
-                      Post
-                    </button>
-                  </div>
+            {/* ── PREMIUM UPSELL BANNER ── */}
+            {isPremium && !userCanWatch && (
+              <div style={{ marginTop: "20px", background: "linear-gradient(135deg, rgba(245,197,24,0.08), rgba(245,197,24,0.03))", border: "1px solid rgba(245,197,24,0.2)", borderRadius: "14px", padding: "18px 22px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontWeight: 700, color: "#f5c518", marginBottom: "4px", fontSize: "0.95rem" }}>
+                    🔒 This is a Premium title
+                  </p>
+                  <p style={{ color: "#888", fontSize: "0.85rem" }}>
+                    Subscribe from <strong style={{ color: "#f5c518" }}>৳299/month</strong> to unlock all premium movies and series.
+                  </p>
                 </div>
-              ))}
-            </div>
-
-            {/* WRITE REVIEW FORM */}
-            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "28px", position: "sticky", top: "90px" }}>
-              <h3 style={{ fontSize: "1.2rem", fontWeight: 800, marginBottom: "24px", fontFamily: "'Playfair Display', serif" }}>Write a Review</h3>
-
-              <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "12px" }}>Your Rating</p>
-              <div style={{ display: "flex", gap: "6px", marginBottom: "20px" }}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(star => (
-                  <button key={star}
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(0)}
-                    onClick={() => setUserRating(star)}
-                    style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.4rem", color: star <= (hoverRating || userRating) ? "#f5c518" : "#333", transition: "color 0.1s, transform 0.1s", transform: star <= (hoverRating || userRating) ? "scale(1.2)" : "scale(1)", padding: "2px" }}>
-                    ★
+                <Link href="/subscription">
+                  <button style={{ background: "#f5c518", color: "#000", border: "none", borderRadius: "9px", padding: "10px 20px", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>
+                    View Plans →
                   </button>
-                ))}
+                </Link>
               </div>
-              {userRating > 0 && <p style={{ color: "#f5c518", fontSize: "0.85rem", marginBottom: "16px", fontWeight: 700 }}>You rated: {userRating}/10</p>}
-
-              <textarea
-                value={reviewText}
-                onChange={e => setReviewText(e.target.value)}
-                placeholder="Share your thoughts about this title..."
-                rows={5}
-                style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "14px", color: "#fff", fontSize: "0.9rem", outline: "none", resize: "vertical", marginBottom: "16px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box" }}
-              />
-
-              <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "10px" }}>Tags</p>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-                {TAGS.map(tag => (
-                  <button key={tag} onClick={() => setSelectedTags(p => p.includes(tag) ? p.filter(t => t !== tag) : [...p, tag])}
-                    style={{ background: selectedTags.includes(tag) ? "rgba(229,9,20,0.2)" : "rgba(255,255,255,0.06)", border: `1px solid ${selectedTags.includes(tag) ? "rgba(229,9,20,0.5)" : "rgba(255,255,255,0.1)"}`, color: selectedTags.includes(tag) ? "#e50914" : "#aaa", padding: "5px 12px", borderRadius: "20px", cursor: "pointer", fontSize: "0.8rem", fontWeight: selectedTags.includes(tag) ? 700 : 400 }}>
-                    #{tag}
-                  </button>
-                ))}
-              </div>
-
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", marginBottom: "20px", color: "#aaa", fontSize: "0.9rem" }}>
-                <input type="checkbox" checked={spoilerToggle} onChange={e => setSpoilerToggle(e.target.checked)}
-                  style={{ accentColor: "#e50914", width: "16px", height: "16px" }} />
-                ⚠️ This review contains spoilers
-              </label>
-
-              <button onClick={handleSubmitReview}
-                style={{ width: "100%", background: "#e50914", color: "#fff", border: "none", borderRadius: "10px", padding: "14px", fontWeight: 700, cursor: "pointer", fontSize: "1rem" }}>
-                Submit Review
-              </button>
-              <p style={{ color: "#666", fontSize: "0.78rem", textAlign: "center", marginTop: "10px" }}>Reviews are published after admin approval</p>
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
 
+        {/* Meta grid */}
+        <div style={{ marginTop: "32px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "14px", padding: "22px" }}>
+          {director && <Meta label="Director" value={director} />}
+          {cast.length > 0 && <Meta label="Cast" value={cast.join(", ")} />}
+          {year && <Meta label="Release Year" value={String(year)} />}
+          <Meta label="Type" value={movie.type} />
+        </div>
+
+        {/* ── REVIEWS + FORM ── */}
+        <div style={{ marginTop: "52px", display: "grid", gridTemplateColumns: "1fr 360px", gap: "40px", alignItems: "flex-start" }}>
+
+          {/* Reviews list */}
+          <div>
+            <h2 style={{ fontSize: "1.4rem", fontWeight: 800, fontFamily: "'Playfair Display', serif", marginBottom: "24px" }}>
+              Reviews {reviews.length > 0 && <span style={{ color: "#444", fontSize: "1rem", fontWeight: 400 }}>({reviews.length})</span>}
+            </h2>
+
+            {reviews.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "#333" }}>
+                <p style={{ fontSize: "2.5rem", marginBottom: "12px" }}>📝</p>
+                <p style={{ color: "#555", fontWeight: 700 }}>No reviews yet — be the first!</p>
+              </div>
+            ) : reviews.map((r: any) => (
+              <div key={r.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "14px", padding: "20px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "#e50914", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1rem", flexShrink: 0, overflow: "hidden" }}>
+                      {r.user?.image ? <img src={r.user.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : r.user?.name?.[0]?.toUpperCase() || "U"}
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "1px" }}>{r.user?.name || "Anonymous"}</p>
+                      <p style={{ color: "#444", fontSize: "0.73rem" }}>{new Date(r.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div style={{ background: "rgba(245,197,24,0.1)", padding: "5px 12px", borderRadius: "8px", color: "#f5c518", fontWeight: 700 }}>★ {r.rating}/10</div>
+                </div>
+
+                {r.hasSpoiler && !showSpoiler[r.id] ? (
+                  <div style={{ background: "rgba(229,9,20,0.08)", border: "1px solid rgba(229,9,20,0.2)", borderRadius: "8px", padding: "11px 14px", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ color: "#e50914", fontSize: "0.85rem", fontWeight: 600 }}>⚠️ Contains spoilers</span>
+                    <button onClick={() => setShowSpoiler(p => ({ ...p, [r.id]: true }))} style={{ background: "rgba(229,9,20,0.2)", color: "#e50914", border: "none", padding: "5px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "0.8rem", fontFamily: "'DM Sans', sans-serif" }}>Show</button>
+                  </div>
+                ) : (
+                  <p style={{ color: "#ccc", lineHeight: 1.7, marginBottom: "12px", fontSize: "0.92rem" }}>{r.content}</p>
+                )}
+
+                {r.tags?.length > 0 && (
+                  <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "12px" }}>
+                    {r.tags.map((t: string) => <span key={t} style={{ background: "rgba(255,255,255,0.06)", color: "#666", padding: "2px 8px", borderRadius: "12px", fontSize: "0.72rem" }}>#{t}</span>)}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.05)", flexWrap: "wrap" }}>
+                  {user && (
+                    <button onClick={() => handleLike(r.id)} style={{ display: "flex", alignItems: "center", gap: "6px", background: likedReviews[r.id] ? "rgba(229,9,20,0.15)" : "rgba(255,255,255,0.05)", border: `1px solid ${likedReviews[r.id] ? "rgba(229,9,20,0.4)" : "rgba(255,255,255,0.1)"}`, color: likedReviews[r.id] ? "#e50914" : "#777", padding: "6px 13px", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+                      {likedReviews[r.id] ? "❤️" : "🤍"} {likeCounts[r.id] || 0}
+                    </button>
+                  )}
+                  <button onClick={() => setShowComments(p => ({ ...p, [r.id]: !p[r.id] }))} style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#777", padding: "6px 13px", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontFamily: "'DM Sans', sans-serif" }}>
+                    💬 {(r.comments || []).length} {showComments[r.id] ? "▲" : "▼"}
+                  </button>
+                  {isAdmin && !r.isApproved && (
+                    <button onClick={() => handleApprove(r.id)} style={{ marginLeft: "auto", background: "rgba(74,222,128,0.15)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)", padding: "6px 14px", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>✓ Approve</button>
+                  )}
+                </div>
+
+                {showComments[r.id] && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                    {(r.comments || []).map((c: any) => (
+                      <div key={c.id} style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+                        <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#333", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.73rem", fontWeight: 700, flexShrink: 0 }}>
+                          {c.user?.name?.[0]?.toUpperCase() || "?"}
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: "10px", padding: "8px 12px", flex: 1 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "3px" }}>
+                            <span style={{ fontWeight: 700, fontSize: "0.82rem" }}>{c.user?.name}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ color: "#444", fontSize: "0.7rem" }}>{new Date(c.createdAt).toLocaleDateString()}</span>
+                              {user && c.user?.id === user.id && (
+                                <button onClick={() => handleDeleteComment(r.id, c.id)} style={{ background: "transparent", border: "none", color: "#444", cursor: "pointer", fontSize: "0.8rem" }}>×</button>
+                              )}
+                            </div>
+                          </div>
+                          <p style={{ color: "#bbb", fontSize: "0.87rem" }}>{c.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {user ? (
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <input value={commentText[r.id] || ""} onChange={e => setCommentText(p => ({ ...p, [r.id]: e.target.value }))} onKeyDown={e => e.key === "Enter" && handleComment(r.id)} placeholder="Write a comment..." style={{ flex: 1, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "8px 12px", color: "#fff", fontSize: "0.85rem", outline: "none", fontFamily: "'DM Sans', sans-serif" }} />
+                        <button onClick={() => handleComment(r.id)} disabled={postingComment[r.id]} style={{ background: "#e50914", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", cursor: "pointer", fontWeight: 600, fontSize: "0.82rem", fontFamily: "'DM Sans', sans-serif" }}>Post</button>
+                      </div>
+                    ) : (
+                      <Link href="/login" style={{ color: "#e50914", fontSize: "0.85rem", textDecoration: "none" }}>Login to comment →</Link>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* WRITE REVIEW FORM */}
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "18px", padding: "26px", position: "sticky", top: "90px" }}>
+            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: "20px", fontFamily: "'Playfair Display', serif" }}>Write a Review</h3>
+            {!user ? (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <p style={{ color: "#555", marginBottom: "14px", fontSize: "0.88rem" }}>Login to write a review</p>
+                <Link href="/login"><button style={{ background: "#e50914", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 24px", fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Log In</button></Link>
+              </div>
+            ) : (
+              <>
+                <p style={{ color: "#666", fontSize: "0.78rem", fontWeight: 600, marginBottom: "8px" }}>Rating</p>
+                <div style={{ display: "flex", gap: "3px", marginBottom: "14px" }}>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                    <button key={n} onMouseEnter={() => setHoverRating(n)} onMouseLeave={() => setHoverRating(0)} onClick={() => setUserRating(n)}
+                      style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "1.25rem", color: n <= (hoverRating || userRating) ? "#f5c518" : "#222", transition: "all 0.1s", transform: n <= (hoverRating || userRating) ? "scale(1.2)" : "scale(1)", padding: "1px" }}>★</button>
+                  ))}
+                </div>
+                {userRating > 0 && <p style={{ color: "#f5c518", fontSize: "0.8rem", fontWeight: 700, marginBottom: "12px" }}>{userRating}/10</p>}
+                <textarea value={reviewText} onChange={e => setReviewText(e.target.value)} placeholder="Share your thoughts..." rows={4}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "11px", color: "#fff", fontSize: "0.88rem", outline: "none", resize: "vertical", marginBottom: "13px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box" }} />
+                <p style={{ color: "#666", fontSize: "0.78rem", fontWeight: 600, marginBottom: "7px" }}>Tags</p>
+                <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "10px" }}>
+                  {PRESET_TAGS.map(t => (
+                    <button key={t} onClick={() => setTags(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])}
+                      style={{ background: tags.includes(t) ? "rgba(229,9,20,0.2)" : "rgba(255,255,255,0.05)", border: `1px solid ${tags.includes(t) ? "rgba(229,9,20,0.4)" : "rgba(255,255,255,0.08)"}`, color: tags.includes(t) ? "#e50914" : "#666", padding: "3px 9px", borderRadius: "14px", cursor: "pointer", fontSize: "0.75rem", fontFamily: "'DM Sans', sans-serif" }}>
+                      #{t}
+                    </button>
+                  ))}
+                </div>
+                <input value={tagInput} onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && tagInput.trim()) { setTags(p => [...p, tagInput.trim()]); setTagInput(""); } }}
+                  placeholder="Custom tag + Enter"
+                  style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "8px 10px", color: "#fff", fontSize: "0.82rem", outline: "none", marginBottom: "12px", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box" }} />
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", marginBottom: "16px", color: "#777", fontSize: "0.85rem" }}>
+                  <input type="checkbox" checked={hasSpoiler} onChange={e => setHasSpoiler(e.target.checked)} style={{ accentColor: "#e50914" }} />
+                  ⚠️ Contains spoilers
+                </label>
+                {submitMsg && (
+                  <div style={{ background: submitMsg.startsWith("✅") ? "rgba(74,222,128,0.1)" : "rgba(229,9,20,0.1)", border: `1px solid ${submitMsg.startsWith("✅") ? "rgba(74,222,128,0.3)" : "rgba(229,9,20,0.3)"}`, borderRadius: "8px", padding: "9px 12px", marginBottom: "12px", fontSize: "0.83rem", color: submitMsg.startsWith("✅") ? "#4ade80" : "#ff6b6b" }}>
+                    {submitMsg}
+                  </div>
+                )}
+                <button onClick={handleSubmitReview} disabled={submitting}
+                  style={{ width: "100%", background: submitting ? "#222" : "#e50914", color: submitting ? "#555" : "#fff", border: "none", borderRadius: "10px", padding: "12px", fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer", fontSize: "0.92rem", fontFamily: "'DM Sans', sans-serif" }}>
+                  {submitting ? "Submitting..." : "Submit Review"}
+                </button>
+                <p style={{ color: "#333", fontSize: "0.72rem", textAlign: "center", marginTop: "7px" }}>Published after admin approval</p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
       <div style={{ height: "80px" }} />
+    </div>
+  );
+}
+
+function Meta({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p style={{ color: "#444", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "5px", fontWeight: 600 }}>{label}</p>
+      <p style={{ fontWeight: 600, fontSize: "0.9rem" }}>{value}</p>
     </div>
   );
 }
