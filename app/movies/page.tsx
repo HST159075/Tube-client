@@ -12,7 +12,7 @@ const SORT_OPTIONS = [
   { value: "most-reviewed",label: "Most Reviewed" },
 ];
 
-// ── Fallback data (shown when API is unavailable) ──────────────────────────
+
 const FALLBACK_MOVIES = [
   { id: 1,  title: "The Godfather",    rating: 9.2, genre: "Crime",   year: 1972, poster: "https://image.tmdb.org/t/p/w300/3bhkrj58Vtu7enYsLLeHjThrVPa.jpg", price: "free" },
   { id: 2,  title: "The Dark Knight",  rating: 9.0, genre: "Action",  year: 2008, poster: "https://image.tmdb.org/t/p/w300/qJ2tW6WMUDux911r6m7haRef0WH.jpg", price: "free" },
@@ -51,7 +51,7 @@ function MoviesContent() {
 
       const API = process.env.NEXT_PUBLIC_API_URL;
 
-      // ── No API URL configured → use fallback immediately ──────────────────
+
       if (!API) {
         applyFallback();
         return;
@@ -78,7 +78,7 @@ function MoviesContent() {
         if (Array.isArray(list) && list.length > 0) {
           setAllMovies(list);
         } else {
-          // API returned empty → use fallback
+         
           applyFallback();
         }
       } catch (err) {
@@ -91,7 +91,7 @@ function MoviesContent() {
     };
 
     const applyFallback = () => {
-      // Client-side filter/sort on fallback data
+     
       let result = [...FALLBACK_MOVIES];
 
       if (searchQuery) {

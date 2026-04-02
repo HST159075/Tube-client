@@ -26,23 +26,36 @@ function LoginForm() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    const { error: authError } = await signIn.email({
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+
+  try {
+    const result = await signIn.email({
       email,
       password,
-      callbackURL: redirect,
     });
-    if (authError) {
-      setError(authError.message || "Invalid email or password");
+
+    console.log("Result:", result);
+
+    if (result?.error) {
+      setError(result.error.message || "Invalid email or password");
       setLoading(false);
       return;
     }
-    router.push(redirect);
-    router.refresh();
-  };
+
+    // Success — 1 second wait করো cookie set হওয়ার জন্য
+    setTimeout(() => {
+      window.location.href = redirect;
+    }, 500);
+
+  } catch (err: any) {
+    console.error("Login error:", err);
+    setError(err.message || "Login failed");
+    setLoading(false);
+  }
+};
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
@@ -50,8 +63,7 @@ function LoginForm() {
     try {
       await signIn.social({
         provider: "google",
-        // frontend URL দাও — backend এখানে redirect করবে OAuth শেষে
-        callbackURL: `${window.location.origin}${redirect}`,
+        callbackURL: `${window.location.origin}/dashboard`,
       });
     } catch (e: any) {
       setError(e.message || "Google login failed");
@@ -68,7 +80,7 @@ function LoginForm() {
         fontFamily: "'DM Sans', sans-serif",
       }}
     >
-      {/* Left panel — decorative, hidden on mobile */}
+
       <div
         style={{
           flex: 1,
@@ -207,7 +219,6 @@ function LoginForm() {
         </div>
       </div>
 
-      {/* Right panel — form */}
       <div
         style={{
           width: "100%",
@@ -379,7 +390,6 @@ function LoginForm() {
           />
         </div>
 
-        {/* Email form */}
         <form onSubmit={handleLogin}>
           <div style={{ marginBottom: "16px" }}>
             <label

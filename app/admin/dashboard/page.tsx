@@ -485,7 +485,7 @@ export default function AdminDashboard() {
                 fontFamily: "'DM Sans', sans-serif",
               }}
             >
-              + Add Title
+              + Add Media
             </button>
           )}
           {tab !== "overview" && (
@@ -1225,7 +1225,7 @@ export default function AdminDashboard() {
                   fontFamily: "'Playfair Display', serif",
                 }}
               >
-                {editing ? "✏️ Edit Title" : "🎬 Add New Title"}
+                {editing ? "✏️ Edit Title" : "🎬 Add New Media"}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -1266,7 +1266,7 @@ export default function AdminDashboard() {
               }}
             >
               <div style={{ gridColumn: "1/-1" }}>
-                <FL>Title *</FL>
+                <FL>Movies or Series Name</FL>
                 <FI
                   value={form.title}
                   onChange={(v) => setForm((p) => ({ ...p, title: v }))}
@@ -1324,7 +1324,7 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ gridColumn: "1/-1" }}>
-                <FL>Poster URL (posterUrl)</FL>
+                <FL>Poster URL</FL>
                 <FI
                   value={form.posterUrl}
                   onChange={(v) => setForm((p) => ({ ...p, posterUrl: v }))}
@@ -1349,7 +1349,7 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ gridColumn: "1/-1" }}>
-                <FL>YouTube / Video URL * (videoUrl)</FL>
+                <FL>Video URL </FL>
                 <FI
                   value={form.videoUrl}
                   onChange={(v) => setForm((p) => ({ ...p, videoUrl: v }))}
@@ -1358,7 +1358,7 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ gridColumn: "1/-1" }}>
-                <FL>Synopsis</FL>
+                <FL>Description </FL>
                 <textarea
                   value={form.synopsis}
                   onChange={(e) =>
@@ -1383,7 +1383,7 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ gridColumn: "1/-1" }}>
-                <FL>Genres (genres[])</FL>
+                <FL>Genres </FL>
                 <TagList
                   tags={form.genres}
                   onRemove={(i) => removeTag("genres", i)}
@@ -1397,7 +1397,7 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ gridColumn: "1/-1" }}>
-                <FL>Cast (cast[])</FL>
+                <FL>Cast</FL>
                 <TagList
                   tags={form.cast}
                   onRemove={(i) => removeTag("cast", i)}

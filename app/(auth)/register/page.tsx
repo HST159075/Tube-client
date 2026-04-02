@@ -69,7 +69,7 @@ const handleGoogle = async () => {
   try {
     await signIn.social({
       provider: "google",
-      callbackURL: `${window.location.origin}${redirect}`,
+      callbackURL: `${window.location.origin}/dashboard`
     });
   } catch (e: any) {
     setError(e.message || "Google login failed");

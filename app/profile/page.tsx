@@ -285,6 +285,10 @@ export default function ProfilePage() {
                   fontWeight: 900,
                   fontFamily: "'Playfair Display', serif",
                   margin: 0,
+                  whiteSpace: "normal", 
+                  wordBreak: "break-word", 
+                  lineHeight: "1.2",
+                  flex: "1",
                 }}
               >
                 {user.name}
