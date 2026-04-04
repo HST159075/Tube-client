@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "autoprefixer": "^10.4.27",
     "better-auth": "^1.2.7",
     "lucide-react": "^1.7.0",
