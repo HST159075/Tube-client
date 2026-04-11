@@ -63,7 +63,7 @@ const handleLogin = async (e: React.FormEvent) => {
     try {
       await signIn.social({
         provider: "google",
-        callbackURL: `${window.location.origin}/dashboard`,
+        callbackURL: `${process.env.NEXT_PUBLIC_API_URL}/dashboard`,
       });
     } catch (e: any) {
       setError(e.message || "Google login failed");
