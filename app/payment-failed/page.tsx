@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function PaymentFailedPage() {
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", padding: "20px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", padding: "20px" }}>
       <div style={{ textAlign: "center", maxWidth: "480px" }}>
         <div style={{ width: "100px", height: "100px", borderRadius: "50%", background: "rgba(229,9,20,0.1)", border: "2px solid rgba(229,9,20,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px", fontSize: "3rem" }}>
           ✕

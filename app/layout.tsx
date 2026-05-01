@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import AIChatbot from "@/components/AIChatbot";
 
 export const metadata: Metadata = {
   title: "CineRate — Movie & Series Rating Portal",
@@ -17,10 +18,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body style={{ margin: 0, padding: 0, background: "#0a0a0a", color: "#fff" }}>
+      <body>
         <Navbar />
         <main>{children}</main>
         <Footer />
+        <AIChatbot />
       </body>
     </html>
   );

@@ -83,7 +83,7 @@ const EMPTY_FORM = {
 export default function AdminDashboard() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
-  const [tab, setTab] = useState<"overview" | "media" | "users" | "reviews">(
+  const [tab, setTab] = useState<"overview" | "media" | "users" | "reviews" | "reports">(
     "overview",
   );
 
@@ -99,6 +99,15 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState("");
 
+  // Filtering & Pagination
+  const [mediaSearch, setMediaSearch]   = useState("");
+  const [userSearch, setUserSearch]     = useState("");
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [pageSize]                      = useState(5);
+  const [mediaPage, setMediaPage]       = useState(1);
+  const [userPage, setUserPage]         = useState(1);
+  const [reviewPage, setReviewPage]     = useState(1);
+
   // Modal
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Media | null>(null);
@@ -112,8 +121,10 @@ export default function AdminDashboard() {
 
   // ── Auth guard ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isPending && session && (session.user as any)?.role !== "ADMIN") {
-      router.push("/");
+    if (!isPending) {
+      if (!session || (session.user as any)?.role !== "ADMIN") {
+        router.push("/");
+      }
     }
   }, [session, isPending, router]);
 
@@ -315,16 +326,27 @@ export default function AdminDashboard() {
     { id: "media", icon: "🎬", label: "Media Library" },
     { id: "users", icon: "👥", label: "Users" },
     { id: "reviews", icon: "📝", label: "Reviews" },
+    { id: "reports", icon: "📈", label: "Reports" },
   ];
 
   const approvedReviews = reviews.filter((r) => r.isApproved);
   const pendingReviews = reviews.filter((r) => !r.isApproved);
 
+  // Derived filtered lists
+  const filteredMedia = media.filter(m => m.title.toLowerCase().includes(mediaSearch.toLowerCase()));
+  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase()));
+  const filteredReviews = reviews.filter(r => r.content.toLowerCase().includes(reviewSearch.toLowerCase()) || r.user?.name?.toLowerCase().includes(reviewSearch.toLowerCase()));
+
+  // Paginated lists
+  const pMedia = filteredMedia.slice((mediaPage - 1) * pageSize, mediaPage * pageSize);
+  const pUsers = filteredUsers.slice((userPage - 1) * pageSize, userPage * pageSize);
+  const pReviews = filteredReviews.slice((reviewPage - 1) * pageSize, reviewPage * pageSize);
+
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "#0a0a0a",
+        background: "var(--bg)",
         color: "#fff",
         fontFamily: "'DM Sans', sans-serif",
         display: "flex",
@@ -596,6 +618,9 @@ export default function AdminDashboard() {
               ))}
             </div>
 
+            {/* Charts Section */}
+            <DashboardCharts />
+
             {/* Quick actions */}
             <div
               style={{
@@ -646,6 +671,15 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ── REPORTS ── */}
+        {tab === "reports" && (
+          <div style={{ padding: "40px", textAlign: "center", background: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px dashed rgba(255,255,255,0.1)" }}>
+             <p style={{ fontSize: "3rem", marginBottom: "20px" }}>📈</p>
+             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", marginBottom: "10px" }}>Advanced Reports</h2>
+             <p style={{ color: "#555", maxWidth: "400px", margin: "0 auto" }}>Detailed analytics and exportable CSV reports are currently being generated. Check back soon for deeper insights.</p>
+          </div>
+        )}
+
         {/* ── MEDIA ── */}
         {tab === "media" &&
           (loading ? (
@@ -667,13 +701,24 @@ export default function AdminDashboard() {
             >
               <div
                 style={{
-                  padding: "12px 16px",
+                  padding: "16px",
                   borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  color: "#444",
-                  fontSize: "0.8rem",
+                  display: "flex",
+                  gap: "12px",
                 }}
               >
-                {media.length} titles total
+                <input
+                  value={mediaSearch}
+                  onChange={(e) => { setMediaSearch(e.target.value); setMediaPage(1); }}
+                  placeholder="Search media..."
+                  style={{
+                    flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "8px", padding: "8px 12px", color: "#fff", fontSize: "0.85rem", outline: "none",
+                  }}
+                />
+                <div style={{ color: "#444", fontSize: "0.8rem", alignSelf: "center" }}>
+                  {filteredMedia.length} titles
+                </div>
               </div>
               <table
                 style={{
@@ -701,7 +746,7 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {media.map((m) => (
+                  {pMedia.map((m) => (
                     <tr
                       key={m.id}
                       style={{
@@ -891,13 +936,24 @@ export default function AdminDashboard() {
             >
               <div
                 style={{
-                  padding: "12px 16px",
+                  padding: "16px",
                   borderBottom: "1px solid rgba(255,255,255,0.06)",
-                  color: "#444",
-                  fontSize: "0.8rem",
+                  display: "flex",
+                  gap: "12px",
                 }}
               >
-                {users.length} registered users
+                <input
+                  value={userSearch}
+                  onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
+                  placeholder="Search users..."
+                  style={{
+                    flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "8px", padding: "8px 12px", color: "#fff", fontSize: "0.85rem", outline: "none",
+                  }}
+                />
+                <div style={{ color: "#444", fontSize: "0.8rem", alignSelf: "center" }}>
+                  {filteredUsers.length} users
+                </div>
               </div>
               <table
                 style={{
@@ -1559,7 +1615,7 @@ function Spinner() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#0a0a0a",
+        background: "var(--bg)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1821,3 +1877,180 @@ const SS: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "'DM Sans', sans-serif",
 };
+
+function DashboardCharts() {
+  const data = [
+    { label: "Jan", users: 40, rev: 2400 },
+    { label: "Feb", users: 55, rev: 3100 },
+    { label: "Mar", users: 70, rev: 4500 },
+    { label: "Apr", users: 65, rev: 3800 },
+    { label: "May", users: 90, rev: 5900 },
+    { label: "Jun", users: 120, rev: 7200 },
+  ];
+  const maxUsers = Math.max(...data.map((d) => d.users));
+  const maxRev = Math.max(...data.map((d) => d.rev));
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+        gap: "20px",
+        marginTop: "32px",
+        marginBottom: "32px",
+      }}
+    >
+      <div
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: "14px",
+          padding: "20px",
+        }}
+      >
+        <p
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: 700,
+            color: "#aaa",
+            marginBottom: "20px",
+            textTransform: "uppercase",
+          }}
+        >
+          User Growth
+        </p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: "10px",
+            height: "150px",
+          }}
+        >
+          {data.map((d) => (
+            <div
+              key={d.label}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  width: "100%",
+                  background: "#e50914",
+                  borderRadius: "4px 4px 0 0",
+                  height: `${(d.users / maxUsers) * 100}%`,
+                  transition: "all 0.5s",
+                }}
+              />
+              <span style={{ fontSize: "0.65rem", color: "#444" }}>
+                {d.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: "14px",
+          padding: "20px",
+        }}
+      >
+        <p
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: 700,
+            color: "#aaa",
+            marginBottom: "20px",
+            textTransform: "uppercase",
+          }}
+        >
+          Revenue Trends
+        </p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: "10px",
+            height: "150px",
+          }}
+        >
+          {data.map((d) => (
+            <div
+              key={d.label}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  width: "100%",
+                  background: "#f5c518",
+                  borderRadius: "4px 4px 0 0",
+                  height: `${(d.rev / maxRev) * 100}%`,
+                  transition: "all 0.5s",
+                }}
+              />
+              <span style={{ fontSize: "0.65rem", color: "#444" }}>
+                {d.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Paginate({
+  total,
+  current,
+  size,
+  set,
+}: {
+  total: number;
+  current: number;
+  size: number;
+  set: (p: number) => void;
+}) {
+  const pages = Math.ceil(total / size);
+  if (pages <= 1) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "6px",
+        padding: "16px",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        justifyContent: "center",
+      }}
+    >
+      {Array.from({ length: pages }).map((_, i) => (
+        <button
+          key={i}
+          onClick={() => set(i + 1)}
+          style={{
+            background: current === i + 1 ? "#e50914" : "rgba(255,255,255,0.05)",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            padding: "4px 10px",
+            cursor: "pointer",
+            fontSize: "0.8rem",
+          }}
+        >
+          {i + 1}
+        </button>
+      ))}
+    </div>
+  );
+}

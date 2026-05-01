@@ -27,7 +27,7 @@ export default function Footer() {
   };
 
   return (
-    <footer style={{ background: "#0d0d0d", borderTop: "1px solid rgba(255,255,255,0.06)", color: "#fff", fontFamily: "'DM Sans', sans-serif", padding: "60px 5vw 32px" }}>
+    <footer style={{ background: "var(--bg-secondary)", borderTop: "1px solid var(--border)", color: "var(--text)", fontFamily: "'DM Sans', sans-serif", padding: "60px 5vw 32px", transition: "background 0.35s, color 0.35s" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
 
         {/* Top row */}

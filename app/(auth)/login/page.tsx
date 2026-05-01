@@ -63,7 +63,7 @@ const handleLogin = async (e: React.FormEvent) => {
     try {
       await signIn.social({
         provider: "google",
-        callbackURL: `${window.location.origin}/dashboard`,
+        callbackURL: `${process.env.NEXT_PUBLIC_API_URL}/dashboard`,
       });
     } catch (e: any) {
       setError(e.message || "Google login failed");
@@ -228,7 +228,7 @@ const handleLogin = async (e: React.FormEvent) => {
           flexDirection: "column",
           justifyContent: "center",
           padding: "40px 40px",
-          background: "#0a0a0a",
+          background: "var(--bg)",
           borderLeft: "1px solid rgba(255,255,255,0.05)",
           overflowY: "auto",
         }}
@@ -361,6 +361,32 @@ const handleLogin = async (e: React.FormEvent) => {
           )}
           {googleLoading ? "Connecting..." : "Continue with Google"}
         </button>
+
+        {/* Demo Login Buttons */}
+        <div style={{ display: "flex", gap: "10px", marginBottom: "24px" }}>
+          <button
+            onClick={() => { setEmail("user@example.com"); setPassword("password123"); }}
+            style={{
+              flex: 1, padding: "10px", borderRadius: "10px",
+              background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)",
+              color: "#4ade80", fontWeight: 700, cursor: "pointer", fontSize: "0.82rem",
+              fontFamily: "'DM Sans', sans-serif"
+            }}
+          >
+            👤 Demo User
+          </button>
+          <button
+            onClick={() => { setEmail("admin@example.com"); setPassword("admin123"); }}
+            style={{
+              flex: 1, padding: "10px", borderRadius: "10px",
+              background: "rgba(245,197,24,0.1)", border: "1px solid rgba(245,197,24,0.3)",
+              color: "#f5c518", fontWeight: 700, cursor: "pointer", fontSize: "0.82rem",
+              fontFamily: "'DM Sans', sans-serif"
+            }}
+          >
+            ⚡ Demo Admin
+          </button>
+        </div>
 
         {/* Divider */}
         <div

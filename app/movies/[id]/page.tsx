@@ -170,7 +170,7 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
   const PRESET_TAGS = ["classic", "underrated", "masterpiece", "must-watch", "overrated", "family-friendly"];
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", paddingTop: "90px", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", paddingTop: "90px", fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ height: "380px", background: "rgba(255,255,255,0.04)" }} />
       <div style={{ padding: "0 5vw", marginTop: "-160px", display: "flex", gap: "28px" }}>
         <div style={{ width: "180px", height: "270px", borderRadius: "12px", background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
@@ -182,7 +182,7 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
   );
 
   if (error || !movie) return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", fontFamily: "'DM Sans', sans-serif" }}>
       <p style={{ fontSize: "3rem" }}>🎬</p>
       <p style={{ color: "#666", fontWeight: 700 }}>{error || "Movie not found"}</p>
       <Link href="/movies" style={{ color: "#e50914", textDecoration: "none" }}>← Browse all</Link>
@@ -203,7 +203,7 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
   const userCanWatch = canWatch(priceType);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* BACKDROP */}
       <div style={{ position: "relative", height: "480px", overflow: "hidden" }}>
@@ -463,11 +463,31 @@ export default function MovieDetailPage({ params }: { params: { id: string } }) 
             )}
           </div>
         </div>
+        {/* ── RELATED MOVIES ── */}
+        <div style={{ marginTop: "64px" }}>
+          <h2 style={{ fontSize: "1.4rem", fontWeight: 800, fontFamily: "'Playfair Display', serif", marginBottom: "24px" }}>You Might Also Like</h2>
+          <div className="scroll-row" style={{ display: "flex", gap: "16px", overflowX: "auto", paddingBottom: "10px", scrollbarWidth: "none" }}>
+            {/* Using a few mock related movies or fetching them */}
+            {[1, 2, 3, 4, 5].map(id => (
+               <Link key={id} href={`/movies/${id}`} style={{ textDecoration: "none", flexShrink: 0, width: "160px" }}>
+                 <div style={{ borderRadius: "10px", overflow: "hidden", aspectRatio: "2/3", background: "#1a1a1a", marginBottom: "8px" }}>
+                    <img src={`https://picsum.photos/seed/${id + 100}/300/450`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                 </div>
+                 <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Related Title {id}</p>
+                 <p style={{ color: "#444", fontSize: "0.75rem" }}>Genre • 2024</p>
+               </Link>
+            ))}
+          </div>
+        </div>
       </div>
-      <div style={{ height: "80px" }} />
+      <div style={{ height: "100px" }} />
     </div>
   );
 }
+
+const SS: React.CSSProperties = {
+  // Styles for scroll row
+};
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (

@@ -38,21 +38,47 @@ export default function HomePage() {
   const [topRated, setTopRated]     = useState<any[]>([]);
   const [newlyAdded, setNewlyAdded] = useState<any[]>([]);
   const [featured, setFeatured]     = useState<any[]>(FEATURED);
+  const [playingVideo, setPlayingVideo] = useState(false);
 
   useEffect(() => {
     const API = process.env.NEXT_PUBLIC_API_URL;
     if (!API) return;
-    const fetches = [
-      { url: `${API}/media?sort=top-rated&limit=6`, set: setTopRated },
-      { url: `${API}/media?sort=newest&limit=4`,    set: setNewlyAdded },
-      { url: `${API}/media?sort=top-rated&limit=3`, set: (d: any[]) => { if (d.length > 0) setFeatured(d); } },
-    ];
-    fetches.forEach(({ url, set }) => {
-      fetch(url, { credentials: "include" })
-        .then(r => r.json())
-        .then(d => { const list = d.data || d.media || d || []; if (Array.isArray(list) && list.length > 0) (set as any)(list); })
-        .catch(() => {});
-    });
+
+    // Top Rated — sort by rating descending
+    fetch(`${API}/media?sort=top-rated&limit=10`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data || d.media || d || [];
+        if (Array.isArray(list) && list.length > 0) {
+          const sorted = [...list].sort((a, b) => (b.avgRating || b.rating || 0) - (a.avgRating || a.rating || 0));
+          setTopRated(sorted.slice(0, 8));
+        }
+      })
+      .catch(() => {});
+
+    // Newly Added — sort by date descending
+    fetch(`${API}/media?sort=newest&limit=10`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data || d.media || d || [];
+        if (Array.isArray(list) && list.length > 0) {
+          const sorted = [...list].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          setNewlyAdded(sorted.slice(0, 8));
+        }
+      })
+      .catch(() => {});
+
+    // Featured hero — top 3 by rating
+    fetch(`${API}/media?sort=top-rated&limit=5`, { credentials: "include" })
+      .then(r => r.json())
+      .then(d => {
+        const list = d.data || d.media || d || [];
+        if (Array.isArray(list) && list.length > 0) {
+          const sorted = [...list].sort((a, b) => (b.avgRating || b.rating || 0) - (a.avgRating || a.rating || 0));
+          setFeatured(sorted.slice(0, 3));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -70,6 +96,7 @@ export default function HomePage() {
     poster:      raw.posterUrl  || raw.poster  || raw.image || "",
     backdrop:    raw.backdropUrl|| raw.backdrop || raw.posterUrl || raw.poster || raw.image || "",
     description: raw.synopsis   || raw.description || "",
+    videoUrl:    raw.videoUrl || "https://www.youtube.com/embed/dQw4w9WgXcQ", // fallback trailer
   };
 
   const handleSearch = () => {
@@ -85,105 +112,210 @@ export default function HomePage() {
         .scroll-row::-webkit-scrollbar { display: none; }
       `}</style>
 
-      <div style={{ background: "#0a0a0a", minHeight: "100vh", color: "#fff", fontFamily: "'DM Sans', sans-serif", width: "100%", overflowX: "hidden" }}>
+      <div style={{ background: "var(--bg)", minHeight: "100vh", color: "var(--text)", fontFamily: "'DM Sans', sans-serif", width: "100%", overflowX: "hidden", transition: "background 0.35s, color 0.35s" }}>
 
         {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-        <div style={{ position: "relative", height: "100svh", minHeight: "560px", maxHeight: "900px", overflow: "hidden", width: "100%" }}>
+        <div style={{ position: "relative", height: "70vh", minHeight: "580px", maxHeight: "920px", overflow: "hidden", width: "100%" }}>
 
-          {/* Backdrop — KEY FIX: width:100%, left:0, right:0 explicitly */}
+          {/* Backdrop image */}
           <div style={{
-            position: "absolute",
-            top: 0, left: 0, right: 0, bottom: 0,
-            width: "100%",
-            height: "100%",
+            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
             backgroundImage: `url(${hero.backdrop})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center center", // center both axes
+            backgroundSize: "cover", backgroundPosition: "center 20%",
             backgroundRepeat: "no-repeat",
-            transition: "background-image 0.8s ease",
+            transition: "background-image 1s ease",
+            transform: "scale(1.05)",
           }} />
 
-          {/* Left-to-right gradient overlay */}
-          <div style={{
-            position: "absolute",
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: "linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.25) 100%)",
-          }} />
-
-          {/* Bottom fade to page bg */}
-          <div style={{
-            position: "absolute",
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: "linear-gradient(to top, rgba(10,10,10,1) 0%, transparent 45%)",
-          }} />
+          {/* Cinematic overlays */}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(105deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.15) 70%, rgba(0,0,0,0.3) 100%)" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, var(--bg) 0%, transparent 40%)" }} />
+          {/* Top vignette */}
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "120px", background: "linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)" }} />
+          {/* Red accent glow */}
+          <div style={{ position: "absolute", bottom: 0, left: "10%", width: "300px", height: "300px", background: "radial-gradient(circle, rgba(229,9,20,0.12) 0%, transparent 70%)", filter: "blur(40px)" }} />
 
           {/* Content */}
-          <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "80px 5vw 40px" }}>
-            <span style={{ background: "#e50914", color: "#fff", fontSize: "10px", fontWeight: 700, letterSpacing: "2px", padding: "4px 10px", borderRadius: "3px", width: "fit-content", marginBottom: "14px", textTransform: "uppercase" }}>
-              FEATURED
-            </span>
+          <div style={{ position: "relative", zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", padding: "0 5vw 60px", maxWidth: "1400px", margin: "0 auto" }}>
+            
+            {/* Badge */}
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "16px" }}>
+              <span style={{
+                background: "rgba(229,9,20,0.9)", color: "#fff", fontSize: "10px", fontWeight: 800,
+                letterSpacing: "2.5px", padding: "5px 14px", borderRadius: "4px", textTransform: "uppercase",
+                backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)",
+              }}>
+                ⭐ Featured
+              </span>
+              <span style={{
+                background: "rgba(255,255,255,0.08)", color: "#f5c518", fontSize: "10px", fontWeight: 800,
+                letterSpacing: "1px", padding: "5px 12px", borderRadius: "4px",
+                backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                ★ {typeof hero.rating === "number" ? hero.rating.toFixed(1) : hero.rating}
+              </span>
+            </div>
 
-            <h1 style={{ fontSize: "clamp(2rem, 7vw, 4.5rem)", fontWeight: 900, lineHeight: 1.05, maxWidth: "600px", marginBottom: "12px", fontFamily: "'Playfair Display', serif" }}>
+            {/* Title */}
+            <h1 style={{
+              fontSize: "clamp(2.2rem, 6vw, 4.2rem)", fontWeight: 900, lineHeight: 1.0,
+              maxWidth: "650px", marginBottom: "14px",
+              fontFamily: "'Playfair Display', serif",
+              color: "#fff",
+              textShadow: "0 4px 30px rgba(0,0,0,0.5)",
+            }}>
               {hero.title}
             </h1>
 
-            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "12px", flexWrap: "wrap" }}>
-              <span style={{ color: "#f5c518", fontWeight: 700, fontSize: "1rem" }}>★ {typeof hero.rating === "number" ? hero.rating.toFixed(1) : hero.rating}</span>
-              <span style={{ color: "#666" }}>•</span>
-              <span style={{ color: "#aaa", fontSize: "0.88rem" }}>{hero.year}</span>
-              <span style={{ color: "#666" }}>•</span>
-              <span style={{ color: "#aaa", fontSize: "0.88rem" }}>{hero.genre}</span>
+            {/* Meta info */}
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "14px", flexWrap: "wrap" }}>
+              <span style={{
+                background: "rgba(255,255,255,0.08)", backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px",
+                padding: "4px 12px", color: "#ccc", fontSize: "0.82rem", fontWeight: 600,
+              }}>{hero.year}</span>
+              <span style={{
+                background: "rgba(255,255,255,0.08)", backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px",
+                padding: "4px 12px", color: "#ccc", fontSize: "0.82rem", fontWeight: 600,
+              }}>{hero.genre}</span>
+              <span style={{
+                background: "rgba(255,255,255,0.08)", backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px",
+                padding: "4px 12px", color: "#ccc", fontSize: "0.82rem", fontWeight: 600,
+              }}>HD</span>
             </div>
 
-            <p style={{ color: "#bbb", maxWidth: "480px", lineHeight: 1.65, marginBottom: "24px", fontSize: "clamp(0.85rem, 2vw, 0.97rem)" }}>
+            {/* Description */}
+            <p style={{ color: "rgba(255,255,255,0.75)", maxWidth: "500px", lineHeight: 1.7, marginBottom: "28px", fontSize: "clamp(0.85rem, 1.5vw, 0.95rem)" }}>
               {hero.description}
             </p>
 
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <Link href={`/movies/${hero.id}`}>
-                <button style={{ background: "#e50914", color: "#fff", border: "none", padding: "13px 26px", borderRadius: "9px", fontWeight: 700, fontSize: "0.92rem", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
-                  ▶ Watch Now
-                </button>
-              </Link>
-              <Link href={`/movies/${hero.id}`}>
-                <button style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(255,255,255,0.25)", padding: "13px 22px", borderRadius: "9px", fontWeight: 600, fontSize: "0.92rem", cursor: "pointer", backdropFilter: "blur(8px)", fontFamily: "'DM Sans', sans-serif" }}>
+            {/* CTA Buttons */}
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+              <button 
+                onClick={() => setPlayingVideo(true)}
+                style={{
+                background: "linear-gradient(135deg, #e50914, #c0070f)",
+                color: "#fff", border: "none", padding: "14px 32px", borderRadius: "12px",
+                fontWeight: 800, fontSize: "0.95rem", cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                boxShadow: "0 6px 24px rgba(229,9,20,0.4)",
+                transition: "all 0.3s",
+                display: "flex", alignItems: "center", gap: "8px",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(229,9,20,0.5)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 6px 24px rgba(229,9,20,0.4)"; }}
+              >
+                ▶ Watch Now
+              </button>
+              <Link href={`/movies/${hero.id}`} style={{ textDecoration: "none" }}>
+                <button style={{
+                  background: "rgba(255,255,255,0.08)", color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.18)", padding: "14px 28px",
+                  borderRadius: "12px", fontWeight: 700, fontSize: "0.95rem", cursor: "pointer",
+                  backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+                  fontFamily: "'DM Sans', sans-serif",
+                  transition: "all 0.3s",
+                  display: "flex", alignItems: "center", gap: "8px",
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.15)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; }}
+                >
                   + Watchlist
                 </button>
               </Link>
             </div>
 
-            {/* Dots */}
-            <div style={{ display: "flex", gap: "6px", marginTop: "32px" }}>
+            {/* Slide indicators */}
+            <div style={{ display: "flex", gap: "8px", marginTop: "36px", alignItems: "center" }}>
               {featured.map((_, i) => (
                 <button key={i} onClick={() => setHeroIndex(i)}
-                  style={{ width: i === heroIndex ? "24px" : "7px", height: "7px", borderRadius: "4px", background: i === heroIndex ? "#e50914" : "rgba(255,255,255,0.25)", border: "none", cursor: "pointer", transition: "all 0.3s", padding: 0 }} />
+                  style={{
+                    width: i === heroIndex ? "32px" : "8px", height: "4px",
+                    borderRadius: "2px",
+                    background: i === heroIndex ? "#e50914" : "rgba(255,255,255,0.2)",
+                    border: "none", cursor: "pointer",
+                    transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)", padding: 0,
+                  }} />
               ))}
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.72rem", marginLeft: "8px", fontWeight: 600 }}>
+                {heroIndex + 1} / {featured.length}
+              </span>
             </div>
           </div>
         </div>
 
+        {/* ══ VIDEO MODAL ═══════════════════════════════════════════════════════ */}
+        {playingVideo && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.9)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(10px)",
+          }}>
+            <div style={{ position: "relative", width: "90%", maxWidth: "1000px", aspectRatio: "16/9", background: "#000", borderRadius: "16px", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.8)" }}>
+              <button 
+                onClick={() => setPlayingVideo(false)}
+                style={{ position: "absolute", top: "16px", right: "16px", background: "rgba(255,255,255,0.2)", color: "#fff", border: "none", width: "40px", height: "40px", borderRadius: "50%", fontSize: "1.5rem", cursor: "pointer", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}
+              >
+                ✕
+              </button>
+              <iframe 
+                src={hero.videoUrl.includes("youtube.com/watch?v=") ? hero.videoUrl.replace("watch?v=", "embed/") + "?autoplay=1" : hero.videoUrl} 
+                style={{ width: "100%", height: "100%", border: "none" }} 
+                allow="autoplay; fullscreen"
+              />
+            </div>
+          </div>
+        )}
+
         {/* ══ SEARCH ════════════════════════════════════════════════════════════ */}
-        <div style={{ padding: "0 4vw", marginTop: "-28px", position: "relative", zIndex: 20 }}>
-          <div style={{ background: "rgba(18,18,18,0.95)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "16px", padding: "16px", backdropFilter: "blur(20px)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ padding: "0 4vw", marginTop: "-32px", position: "relative", zIndex: 20, maxWidth: "1400px", margin: "-32px auto 0" }}>
+          <div style={{
+            background: "rgba(15,15,18,0.7)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "18px", padding: "20px 24px",
+            backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
+          }}>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSearch()}
-                placeholder="Search movies, series..."
-                style={{ flex: 1, minWidth: "160px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "9px", padding: "11px 14px", color: "#fff", fontSize: "0.92rem", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                placeholder="🔍 Search movies, series, actors..."
+                style={{
+                  flex: 1, minWidth: "200px",
+                  background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "12px", padding: "13px 18px", color: "#fff",
+                  fontSize: "0.95rem", outline: "none", fontFamily: "'DM Sans', sans-serif",
+                  transition: "border-color 0.2s",
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = "rgba(229,9,20,0.4)"}
+                onBlur={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"}
               />
               <button onClick={handleSearch}
-                style={{ background: "#e50914", color: "#fff", border: "none", borderRadius: "9px", padding: "11px 20px", fontWeight: 700, cursor: "pointer", fontSize: "0.9rem", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap" }}>
+                style={{
+                  background: "linear-gradient(135deg, #e50914, #c0070f)", color: "#fff",
+                  border: "none", borderRadius: "12px", padding: "13px 24px",
+                  fontWeight: 700, cursor: "pointer", fontSize: "0.9rem",
+                  fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap",
+                  boxShadow: "0 4px 16px rgba(229,9,20,0.3)",
+                }}>
                 Search
               </button>
             </div>
-            <div style={{ display: "flex", gap: "7px", marginTop: "10px", flexWrap: "wrap" }}>
-              {["Action", "Drama", "Sci-Fi", "Crime", "Comedy", "Thriller"].map(g => (
+            <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
+              {["Action", "Drama", "Sci-Fi", "Crime", "Comedy", "Thriller", "Horror"].map(g => (
                 <button key={g} onClick={() => router.push(`/movies?genre=${g}`)}
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "5px 12px", color: "#888", fontSize: "0.78rem", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "background 0.2s" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(229,9,20,0.15)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}>
+                  style={{
+                    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: "20px", padding: "6px 14px", color: "#777",
+                    fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(229,9,20,0.12)"; e.currentTarget.style.color = "#e50914"; e.currentTarget.style.borderColor = "rgba(229,9,20,0.25)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "#777"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>
                   {g}
                 </button>
               ))}
@@ -275,6 +407,103 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+
+        {/* ══ STATISTICS ═════════════════════════════════════════════════════════ */}
+        <div style={{ padding: "64px 4vw", background: "rgba(255,255,255,0.02)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "32px", textAlign: "center" }}>
+            {[
+              { label: "Movies & Series", value: "5,000+", icon: "🎬" },
+              { label: "Active Reviewers", value: "10,000+", icon: "👥" },
+              { label: "Average Rating", value: "4.8/5", icon: "⭐" },
+              { label: "Daily Streamers", value: "2,500+", icon: "🚀" },
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ fontSize: "2rem", marginBottom: "12px" }}>{s.icon}</div>
+                <div style={{ fontSize: "2.2rem", fontWeight: 900, color: "#e50914", marginBottom: "4px" }}>{s.value}</div>
+                <div style={{ color: "#666", fontSize: "0.85rem", fontWeight: 600 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ══ TESTIMONIALS ══════════════════════════════════════════════════════ */}
+        <div style={{ padding: "80px 4vw" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <h2 style={{ fontSize: "clamp(1.6rem, 4vw, 2.4rem)", fontWeight: 900, fontFamily: "'Playfair Display', serif", marginBottom: "8px" }}>What Fans Are Saying</h2>
+            <p style={{ color: "#666" }}>Join the community of film enthusiasts</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px" }}>
+            {[
+              { name: "Sarah J.", role: "Film Critic", text: "CineTube has completely changed how I discover independent films. The recommendations are spot on!" },
+              { name: "Mark D.", role: "Casual Viewer", text: "The Pro Plan is worth every penny for the 4K quality alone. Best streaming experience out there." },
+              { name: "Elena R.", role: "Movie Blogger", text: "I love the community reviews. It's so easy to find what's actually worth watching this weekend." },
+            ].map(t => (
+              <div key={t.name} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "18px", padding: "28px" }}>
+                <p style={{ color: "#aaa", fontStyle: "italic", marginBottom: "20px", lineHeight: 1.6 }}>"{t.text}"</p>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#e50914", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>{t.name[0]}</div>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>{t.name}</p>
+                    <p style={{ color: "#444", fontSize: "0.75rem" }}>{t.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ══ FAQ ═══════════════════════════════════════════════════════════════ */}
+        <div style={{ padding: "80px 4vw", background: "rgba(0,0,0,0.3)" }}>
+          <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+            <h2 style={{ fontSize: "2rem", fontWeight: 900, fontFamily: "'Playfair Display', serif", marginBottom: "32px", textAlign: "center" }}>Got Questions?</h2>
+            {[
+              { q: "How do I cancel my subscription?", a: "You can cancel your subscription at any time from your profile settings. No hidden fees." },
+              { q: "Can I watch on multiple devices?", a: "Yes! Depending on your plan, you can stream on up to 4 devices simultaneously." },
+              { q: "Do you offer a student discount?", a: "Currently, we don't, but our Yearly plan offers the best value with 2 months free!" },
+            ].map((f, i) => (
+              <div key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "20px 0" }}>
+                <p style={{ fontWeight: 700, fontSize: "1.05rem", marginBottom: "10px", color: "#eee" }}>Q: {f.q}</p>
+                <p style={{ color: "#666", lineHeight: 1.6, fontSize: "0.92rem" }}>A: {f.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ══ NEWSLETTER ════════════════════════════════════════════════════════ */}
+        <div style={{ padding: "80px 4vw" }}>
+          <div style={{ background: "linear-gradient(135deg, #e50914 0%, #c0070f 100%)", borderRadius: "24px", padding: "60px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+             <div style={{ position: "absolute", inset: 0, background: "url('https://www.transparenttextures.com/patterns/carbon-fibre.png')", opacity: 0.1 }} />
+             <div style={{ position: "relative", zIndex: 1 }}>
+               <h2 style={{ fontSize: "clamp(1.8rem, 5vw, 2.8rem)", fontWeight: 900, marginBottom: "16px", fontFamily: "'Playfair Display', serif" }}>Never Miss a Premiere</h2>
+               <p style={{ color: "rgba(255,255,255,0.8)", maxWidth: "500px", margin: "0 auto 32px", lineHeight: 1.6 }}>Join our mailing list to get exclusive trailers, early access to tickets, and movie news delivered to your inbox.</p>
+               <div style={{ display: "flex", gap: "10px", maxWidth: "450px", margin: "0 auto", flexWrap: "wrap" }}>
+                 <input placeholder="Enter your email address" style={{ flex: 1, minWidth: "200px", background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "12px", padding: "14px 20px", color: "#fff", fontSize: "1rem", outline: "none", backdropFilter: "blur(10px)" }} />
+                 <button style={{ background: "#fff", color: "#e50914", border: "none", borderRadius: "12px", padding: "14px 28px", fontWeight: 800, cursor: "pointer", fontSize: "0.95rem" }}>Subscribe</button>
+               </div>
+             </div>
+          </div>
+        </div>
+
+        {/* ══ APP CTA ═══════════════════════════════════════════════════════════ */}
+        <div style={{ padding: "80px 4vw 100px", textAlign: "center" }}>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: 800, letterSpacing: "3px", textTransform: "uppercase", color: "#444", marginBottom: "24px" }}>Available Everywhere</h2>
+          <div style={{ display: "flex", gap: "20px", justifyContent: "center", flexWrap: "wrap" }}>
+             <button style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "12px 24px", display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
+               <span style={{ fontSize: "1.5rem" }}>🍎</span>
+               <div style={{ textAlign: "left" }}>
+                 <p style={{ fontSize: "0.6rem", textTransform: "uppercase", color: "#666" }}>Download on the</p>
+                 <p style={{ fontWeight: 700, fontSize: "1rem" }}>App Store</p>
+               </div>
+             </button>
+             <button style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "12px 24px", display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
+               <span style={{ fontSize: "1.5rem" }}>🤖</span>
+               <div style={{ textAlign: "left" }}>
+                 <p style={{ fontSize: "0.6rem", textTransform: "uppercase", color: "#666" }}>Get it on</p>
+                 <p style={{ fontWeight: 700, fontSize: "1rem" }}>Google Play</p>
+               </div>
+             </button>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -320,20 +549,52 @@ function MovieCard({ movie }: { movie: any }) {
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        style={{ transition: "transform 0.25s", transform: hovered ? "scale(1.04)" : "scale(1)" }}
+        style={{
+          transition: "transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s",
+          transform: hovered ? "scale(1.05) translateY(-4px)" : "scale(1)",
+          boxShadow: hovered ? "0 12px 40px rgba(229,9,20,0.2)" : "none",
+        }}
       >
-        <div style={{ position: "relative", borderRadius: "11px", overflow: "hidden", aspectRatio: "2/3", background: "#1a1a1a", marginBottom: "9px" }}>
+        <div style={{
+          position: "relative", borderRadius: "14px", overflow: "hidden",
+          aspectRatio: "2/3", background: "#1a1a1a", marginBottom: "9px",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}>
           {poster
             ? <img src={poster} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
             : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2.5rem" }}>🎬</div>
           }
+          {/* Glassmorphism hover overlay */}
           {hovered && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ background: "#e50914", color: "#fff", padding: "7px 16px", borderRadius: "20px", fontWeight: 700, fontSize: "0.8rem" }}>▶ Watch</span>
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "rgba(0,0,0,0.35)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.3s",
+            }}>
+              <span style={{
+                background: "rgba(229,9,20,0.85)",
+                backdropFilter: "blur(10px)",
+                color: "#fff", padding: "8px 18px", borderRadius: "20px",
+                fontWeight: 700, fontSize: "0.8rem",
+                border: "1px solid rgba(255,255,255,0.15)",
+                boxShadow: "0 4px 16px rgba(229,9,20,0.4)",
+              }}>▶ Watch</span>
             </div>
           )}
+          {/* Glass rating badge */}
           {rating && (
-            <div style={{ position: "absolute", top: "7px", right: "7px", background: "rgba(0,0,0,0.82)", borderRadius: "5px", padding: "2px 6px", fontSize: "11px", fontWeight: 700, color: "#f5c518" }}>
+            <div style={{
+              position: "absolute", top: "8px", right: "8px",
+              background: "rgba(0,0,0,0.5)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px", padding: "3px 8px",
+              fontSize: "11px", fontWeight: 700, color: "#f5c518",
+            }}>
               ★ {typeof rating === "number" ? rating.toFixed(1) : rating}
             </div>
           )}

@@ -114,7 +114,7 @@ export default function ProfilePage() {
   const isAdmin = user.role === "ADMIN";
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* ── HERO BANNER ── */}
       <div style={{ position: "relative", height: "240px", background: "linear-gradient(135deg, #1a0005 0%, #0d0d1a 50%, #0a0a0a 100%)" }}>
@@ -208,7 +208,7 @@ export default function ProfilePage() {
 
               <div style={{ marginBottom: "15px" }}>
                 <label style={{ display: "block", color: "#555", fontSize: "0.75rem", marginBottom: "5px", fontWeight: 700 }}>FULL NAME</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", background: "#0a0a0a", border: "1px solid #333", padding: "12px", borderRadius: "8px", color: "#fff", outline: "none" }} />
+                <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", background: "var(--bg)", border: "1px solid #333", padding: "12px", borderRadius: "8px", color: "#fff", outline: "none" }} />
               </div>
 
               <button onClick={handleSave} disabled={saving} style={{ width: "100%", background: "#e50914", color: "#fff", border: "none", padding: "14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", marginTop: "10px" }}>
@@ -266,7 +266,7 @@ export default function ProfilePage() {
 // Minimal Components
 function PageLoader() {
   return (
-    <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a" }}>
+    <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
       <div style={{ width: "40px", height: "40px", border: "4px solid #222", borderTopColor: "#e50914", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>

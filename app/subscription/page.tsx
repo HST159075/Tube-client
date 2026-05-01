@@ -127,7 +127,7 @@ export default function SubscriptionPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'DM Sans', sans-serif", paddingTop: "90px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'DM Sans', sans-serif", paddingTop: "90px" }}>
 
       {/* Hero */}
       <div style={{ textAlign: "center", padding: "60px 5vw 0" }}>

@@ -64,18 +64,19 @@ function RegisterForm() {
     router.push("/login");
   };
 
-const handleGoogle = async () => {
-  setGoogleLoading(true); setError("");
-  try {
-    await signIn.social({
-      provider: "google",
-      callbackURL: `${window.location.origin}/dashboard`
-    });
-  } catch (e: any) {
-    setError(e.message || "Google login failed");
-    setGoogleLoading(false);
-  }
-};
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    setError("");
+    try {
+      await signIn.social({
+        provider: "google",
+        callbackURL: `${process.env.NEXT_PUBLIC_API_URL}/dashboard`,
+      });
+    } catch (e: any) {
+      setError(e.message || "Google login failed");
+      setGoogleLoading(false);
+    }
+  };
 
   return (
     <div
@@ -237,7 +238,7 @@ const handleGoogle = async () => {
           flexDirection: "column",
           justifyContent: "center",
           padding: "40px",
-          background: "#0a0a0a",
+          background: "var(--bg)",
           borderLeft: "1px solid rgba(255,255,255,0.05)",
           overflowY: "auto",
         }}

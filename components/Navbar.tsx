@@ -17,6 +17,23 @@ export default function Navbar() {
   const user = session?.user as any;
   const isAdmin = user?.role === "ADMIN";
 
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme") as "dark" | "light";
+    if (saved) {
+      setTheme(saved);
+      document.body.className = saved;
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("theme", next);
+    document.body.className = next;
+  };
+
   useEffect(() => { refetch?.(); }, [pathname]);
   useEffect(() => {
     const interval = setInterval(() => refetch?.(), 30000);
@@ -72,7 +89,7 @@ export default function Navbar() {
         }
         .nav-link {
           position: relative;
-          color: #888;
+          color: var(--muted);
           text-decoration: none;
           font-weight: 600;
           font-size: 0.88rem;
@@ -89,9 +106,9 @@ export default function Navbar() {
           border-radius: 2px;
           transition: width 0.3s cubic-bezier(0.16,1,0.3,1);
         }
-        .nav-link:hover { color: #fff; }
+        .nav-link:hover { color: var(--text); }
         .nav-link:hover::after { width: 100%; }
-        .nav-link.active { color: #fff; }
+        .nav-link.active { color: var(--text); }
         .nav-link.active::after { width: 100%; }
 
         .drop-item {
@@ -168,10 +185,12 @@ export default function Navbar() {
       <nav style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 1000,
         background: scrolled || mobileOpen
-          ? "rgba(8,8,10,0.96)"
+          ? "rgba(10,10,12,0.55)"
           : "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)",
-        backdropFilter: scrolled || mobileOpen ? "blur(24px) saturate(180%)" : "none",
-        borderBottom: scrolled || mobileOpen ? "1px solid rgba(255,255,255,0.06)" : "none",
+        backdropFilter: scrolled || mobileOpen ? "blur(20px) saturate(200%)" : "none",
+        WebkitBackdropFilter: scrolled || mobileOpen ? "blur(20px) saturate(200%)" : "none",
+        borderBottom: scrolled || mobileOpen ? "1px solid rgba(255,255,255,0.08)" : "none",
+        boxShadow: scrolled ? "0 8px 32px rgba(0,0,0,0.4)" : "none",
         transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
         fontFamily: "'DM Sans', sans-serif",
       }}>
@@ -203,8 +222,8 @@ export default function Navbar() {
             }}>
               CINE
             </div>
-            <span style={{ color: "#fff", fontWeight: 800, fontSize: "1rem", letterSpacing: "1px" }}>
-              TUBE
+            <span style={{ color: "var(--text)", fontWeight: 800, fontSize: "1rem", letterSpacing: "1px" }}>
+              RATE
             </span>
           </Link>
 
@@ -222,7 +241,45 @@ export default function Navbar() {
           </div>
 
           {/* ── DESKTOP RIGHT ── */}
-          <div className="desktop-nav" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div className="desktop-nav" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            {/* Theme Toggle — Pill Switch */}
+            <button
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              style={{
+                position: "relative",
+                width: "56px", height: "28px", borderRadius: "14px",
+                background: theme === "dark"
+                  ? "linear-gradient(135deg, #1a1a2e, #16213e)"
+                  : "linear-gradient(135deg, #87CEEB, #f0c27f)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                cursor: "pointer", padding: 0,
+                boxShadow: theme === "dark"
+                  ? "inset 0 1px 3px rgba(0,0,0,0.4), 0 0 8px rgba(100,100,255,0.1)"
+                  : "inset 0 1px 3px rgba(0,0,0,0.15), 0 0 8px rgba(255,200,50,0.2)",
+                transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+                overflow: "hidden",
+              }}
+            >
+              {/* Sliding knob */}
+              <div style={{
+                position: "absolute",
+                top: "2px",
+                left: theme === "dark" ? "2px" : "28px",
+                width: "24px", height: "24px", borderRadius: "50%",
+                background: theme === "dark"
+                  ? "linear-gradient(145deg, #e8e8e8, #c0c0c0)"
+                  : "linear-gradient(145deg, #fff7e6, #ffd700)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "13px",
+                boxShadow: theme === "dark"
+                  ? "0 2px 8px rgba(0,0,0,0.5)"
+                  : "0 2px 8px rgba(255,165,0,0.4)",
+                transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+              }}>
+                {theme === "dark" ? "🌙" : "☀️"}
+              </div>
+            </button>
 
             {/* Watchlist */}
             <Link href={user ? "/profile" : "/login"}>
